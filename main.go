@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 )
@@ -24,6 +25,7 @@ type LoginRequest struct {
 type LoginResponse struct {
 	Id      int    `json:"id"`
 	Name    string `json:"name"`
+	FaceUrl string `json:"faceUrl"`
 	ImToken string `json:"imToken"`
 }
 
@@ -38,33 +40,41 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 查询用户
+	// 一个已上线的项目，登录逻辑对接 open im server 的示意
+
+	// 1. 从数据库中查询用户
 	user, err := findUserByName(arg.UserName)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	// 若没有 im 账户就注册一个
+	// 2. 若数据库字段表明没有 im 账户就注册一个
 	if !user.hasImAccount {
-		logger.InfoContext(ctx, "register im account")
+		logger.InfoContext(ctx, "register im account",
+			slog.String("url", "/user/user_register"),
+		)
 		_, err := UserRegister(ctx, UserRegisterRequest{
 			Secret: "openIM123",
 			Users: []UserRegisterUser{{
 				UserId:   strconv.Itoa(user.id),
 				Nickname: user.name,
-				FaceUrl:  "",
+				FaceUrl:  user.faceUrl,
 			}},
 		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	}
-	setImAccount(user.id)
 
-	// 获取 im token
-	logger.InfoContext(ctx, "get user token")
+		// 3. 将数据库字段更新为“已注册”
+		setHasImAccount(user.id)
+	}
+
+	// 4. 获取 im token
+	logger.InfoContext(ctx, "get user token",
+		slog.String("url", "/auth/user_token"),
+	)
 	reply, err := UserToken(ctx, UserTokenRequest{
 		Secret:     "openIM123",
 		PlatformId: arg.Platform,
@@ -75,10 +85,11 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 响应
+	// 5. 响应用户信息与 im token
 	data := LoginResponse{
 		Id:      user.id,
 		Name:    user.name,
+		FaceUrl: user.faceUrl,
 		ImToken: reply.Token,
 	}
 	renderJson(w, http.StatusOK, data)

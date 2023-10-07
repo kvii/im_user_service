@@ -9,13 +9,14 @@ var ErrUserNotFound = errors.New("user not found")
 type userTable struct {
 	id           int    // 主键
 	name         string // 用户名
+	faceUrl      string // 头像网址
 	hasImAccount bool   // 是否有 im 账号
 }
 
 // 模拟数据库数据。可以自己添加新用户，模拟系统中已经存在的用户。
 var tableUsers = []userTable{
-	{1, "a", true},
-	{2, "b", true},
+	{1, "a", "", true},
+	{2, "b", "", true},
 }
 
 // 模拟数据库查询
@@ -29,7 +30,7 @@ func findUserByName(name string) (userTable, error) {
 }
 
 // 模拟数据库更新
-func setImAccount(id int) error {
+func setHasImAccount(id int) error {
 	for i, item := range tableUsers {
 		if item.id == id {
 			tableUsers[i].hasImAccount = true
